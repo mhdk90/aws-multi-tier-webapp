@@ -1,0 +1,83 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Web layer for the application
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID from the network stack
+
+  PublicSubnet1Id:
+    Type: AWS::EC2::Subnet::Id
+    Description: Public subnet ID for the web server
+
+  KeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Existing EC2 KeyPair for SSH access
+
+  AmiId:
+    Type: AWS::EC2::Image::Id
+    Description: AMI ID for the web server EC2 instance
+
+  AllowedAdminCidr:
+    Type: String
+    Default: 203.0.113.10/32
+    Description: CIDR allowed to SSH to the EC2 instance
+
+Resources:
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP from internet to the load balancer
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: alb-sg
+
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP from ALB and SSH from admin CIDR
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref AllowedAdminCidr
+      Tags:
+        - Key: Name
+          Value: web-sg
+
+  WebServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: t3.micro
+      KeyName: !Ref KeyName
+      SubnetId: !Ref PublicSubnet1Id
+      SecurityGroupIds:
+        - !Ref WebServerSecurityGroup
+      Tags:
+        - Key: Name
+          Value: web-server-1
+
+Outputs:
+  LoadBalancerSecurityGroupId:
+    Description: Security group ID for the ALB
+    Value: !Ref LoadBalancerSecurityGroup
+
+  WebServerSecurityGroupId:
+    Description: Security group ID for the EC2 instance
+    Value: !Ref WebServerSecurityGroup
+
+  WebServerId:
+    Description: EC2 instance ID
+    Value: !Ref WebServer
